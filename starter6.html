@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>CSCE 5320 - HW6 Starter</title>
+<script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  body { font-family: system-ui, Arial, sans-serif; margin: 28px; color: #243657; }
+  h1 { font-size: 24px; margin: 0 0 2px; }
+  .subtitle { color: #61708a; margin: 0 0 18px; }
+  .switches { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 16px; }
+  .switch { border: 4px solid #bac8df; border-radius: 22px; background: #fff;
+            color: #243657; cursor: pointer; font: 700 19px system-ui;
+            padding: 14px 28px; }
+  .switch.active { background: #29477e; border-color: #29477e; color: #fff; }
+  .switch-dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%;
+                background: #70a9dc; margin-right: 14px; vertical-align: -2px; }
+  .switch.active .switch-dot { background: #86e0c3; box-shadow: 0 0 0 7px #416292; }
+  .controls { display: flex; align-items: center; gap: 10px; color: #243657;
+              font-size: 13px; font-weight: 700; }
+  select, button { border: 1px solid #c5d0e2; border-radius: 6px; background: #fff;
+                   color: #243657; padding: 7px 10px; font: inherit; }
+  button { cursor: pointer; }
+  #status { color: #61708a; font-size: 13px; margin: 8px 0 0; }
+  #chart { height: 610px; width: 100%; }
+  #tip { position: absolute; pointer-events: none; opacity: 0; z-index: 2;
+         background: #1f3864; color: #fff; padding: 8px 10px; border-radius: 5px;
+         font-size: 12px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<h1>Energy, Wealth, and Emissions in 3D</h1>
+<p class="subtitle">Every dot is one country-year observation. Rotate the chart to explore how GDP, carbon emissions, and energy use cluster across the world.</p>
+<div class="switches" aria-label="Question views">
+  <button class="switch active"><span class="switch-dot"></span>Q1 &middot; A1 3D</button>
+  <button class="switch"><span class="switch-dot"></span>Q1 &middot; A2 Rotated 3D</button>
+  <button class="switch"><span class="switch-dot"></span>Q1 &middot; B Sorted bars</button>
+  <button class="switch"><span class="switch-dot"></span>Q2 &middot; Small multiples</button>
+  <button class="switch"><span class="switch-dot"></span>Q2 &middot; Animation</button>
+  <button class="switch"><span class="switch-dot"></span>Q3 &middot; Interaction</button>
+  <button class="switch"><span class="switch-dot"></span>Q3 &middot; Delayed tooltip</button>
+</div>
+<div class="controls">
+  <label for="year-filter">Show year:</label>
+  <select id="year-filter"></select>
+  <button id="reset-camera" type="button">Reset camera</button>
+  <button id="play-animation" type="button">Play animation</button>
+</div>
+<div id="status">loading&hellip;</div>
+<div id="chart"></div>
+<div id="tip"></div>
+
+<script>
+// ============ point these at YOUR data ============
+const DATA_URL = 'https://gist.githubusercontent.com/sazzeb/37265dd61f9e18e138818a892943bf1e/raw/hw6_sample_data.csv';
+const NUMERIC  = ['year','population_millions','gdp_per_capita','co2_per_capita',
+                  'co2_total_mt','renewable_pct','energy_per_capita'];
+const X_COL = 'gdp_per_capita';
+const Y_COL = 'co2_per_capita';
+const Z_COL = 'energy_per_capita';
+const CAT_COL = 'region';
+const FRAME_COL = 'year';
+const LABEL_COL = 'country';
+const TOOLTIP_DELAY_MS = 2000;
+
+d3.csv(DATA_URL, d => { NUMERIC.forEach(c => d[c] = +d[c]); return d; }).then(data => {
+  const years = [...new Set(data.map(d => d[FRAME_COL]))].sort(d3.ascending);
+  const filter = d3.select('#year-filter');
+  filter.append('option').attr('value', 'all').text(`All years (${data.length} points)`);
+  years.forEach(year => filter.append('option').attr('value', year).text(year));
+
+  const color = d3.scaleOrdinal().domain([...new Set(data.map(d => d[CAT_COL]))])
+    .range(d3.schemeTableau10);
+  const layout = {
+    title: { text: 'GDP, CO₂, and Energy Use by Country and Year', font: { size: 18 } },
+    margin: { l: 0, r: 0, t: 55, b: 0 },
+    legend: { title: { text: 'Region' } },
+    scene: {
+      xaxis: { title: 'GDP per capita (USD)' },
+      yaxis: { title: 'CO₂ per capita (tonnes)' },
+      zaxis: { title: 'Energy per capita' },
+      camera: { eye: { x: 1.6, y: 1.6, z: 1.2 } }
+    },
+    hoverlabel: { bgcolor: '#1f3864', font: { color: '#fff' } }
+  };
+
+  function draw3D(selectedYear, rotated) {
+    const visible = selectedYear === 'all'
+      ? data
+      : data.filter(d => String(d[FRAME_COL]) === selectedYear);
+    const traces = color.domain().map(region => {
+      const points = visible.filter(d => d[CAT_COL] === region);
+      return {
+        type: 'scatter3d',
+        mode: 'markers',
+        name: region,
+        x: points.map(d => d[X_COL]),
+        y: points.map(d => d[Y_COL]),
+        z: points.map(d => d[Z_COL]),
+        text: points.map(d => d[LABEL_COL]),
+        customdata: points.map(d => d[FRAME_COL]),
+        hovertemplate: '<b>%{text}</b><br>Year: %{customdata}<br>GDP: %{x:$,.0f}<br>CO₂: %{y:.2f}<br>Energy: %{z:.0f}<extra></extra>',
+        marker: { size: 5, color: color(region), opacity: 0.8 }
+      };
+    });
+    const camera = rotated
+      ? { eye: { x: -1.7, y: 1.3, z: 1.1 } }
+      : { eye: { x: 1.6, y: 1.6, z: 1.2 } };
+    Plotly.react('chart', traces, { ...layout, scene: { ...layout.scene, camera } },
+      { responsive: true, displaylogo: false });
+    d3.select('#status').text(`${visible.length} points shown, ${years.length} years, ${color.domain().length} regions`);
+  }
+
+  function drawBars(selectedYear) {
+    const visible = (selectedYear === 'all' ? data : data.filter(d => String(d[FRAME_COL]) === selectedYear))
+      .slice()
+      .sort((a, b) => d3.descending(a[X_COL], b[X_COL]));
+    const barColor = d3.scaleOrdinal()
+      .domain(color.domain())
+      .range(['#6f8fb3', '#c98f65', '#7ba487', '#b46b6b', '#9276a8', '#9c8178', '#c17fae']);
+    const barTraces = color.domain().map(region => {
+      const points = visible.filter(d => d[CAT_COL] === region);
+      return {
+        type: 'bar',
+        orientation: 'h',
+        name: region,
+        x: points.map(d => d[X_COL]),
+        y: points.map(d => d[LABEL_COL]),
+        customdata: points.map(d => [d[Y_COL], d[Z_COL], d[FRAME_COL], d[CAT_COL]]),
+        marker: {
+          color: barColor(region),
+          opacity: 0.85,
+          line: { color: '#fff', width: 0.5 }
+        },
+        hovertemplate: '<b>%{y}</b><br>GDP: %{x:$,.0f}<br>CO₂: %{customdata[0]:.2f}<br>Energy: %{customdata[1]:.0f}<br>Year: %{customdata[2]}<br>Region: %{customdata[3]}<extra></extra>'
+      };
+    });
+    const barLayout = {
+      title: { text: 'GDP per Capita by Country (Sorted)', font: { size: 18 } },
+      margin: { l: 135, r: 180, t: 55, b: 55 },
+      xaxis: { title: 'GDP per capita (USD)', tickformat: '~s' },
+      yaxis: {
+        title: 'Country',
+        autorange: 'reversed',
+        automargin: true,
+        categoryorder: 'array',
+        categoryarray: visible.map(d => d[LABEL_COL])
+      },
+      height: 680,
+      barmode: 'overlay',
+      legend: { title: { text: 'Region' } },
+      hoverlabel: { bgcolor: '#1f3864', font: { color: '#fff' } }
+    };
+    Plotly.react('chart', barTraces, barLayout, { responsive: true, displaylogo: false });
+    d3.select('#status').text(`${visible.length} countries sorted by GDP; muted colors show region`);
+  }
+
+  function drawSmallMultiples() {
+    const cols = 3;
+    const rows = Math.ceil(years.length / cols);
+    const xRange = d3.extent(data, d => d[X_COL]);
+    const yRange = d3.extent(data, d => d[Y_COL]);
+    const traces = [];
+    const panelLayout = {};
+
+    years.forEach((year, i) => {
+      const panel = data.filter(d => d[FRAME_COL] === year);
+      const axisNumber = i + 1;
+      const xAxis = axisNumber === 1 ? 'xaxis' : `xaxis${axisNumber}`;
+      const yAxis = axisNumber === 1 ? 'yaxis' : `yaxis${axisNumber}`;
+      const xRef = axisNumber === 1 ? 'x' : `x${axisNumber}`;
+      const yRef = axisNumber === 1 ? 'y' : `y${axisNumber}`;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const gap = 0.045;
+      const width = (1 - gap * (cols - 1)) / cols;
+      const height = (1 - gap * (rows - 1)) / rows;
+
+      traces.push({
+        type: 'scatter',
+        mode: 'markers',
+        name: year,
+        x: panel.map(d => d[X_COL]),
+        y: panel.map(d => d[Y_COL]),
+        text: panel.map(d => d[LABEL_COL]),
+        customdata: panel.map(d => [d[Z_COL], d[CAT_COL]]),
+        xaxis: xRef,
+        yaxis: yRef,
+        marker: {
+          size: 8,
+          color: panel.map(d => color(d[CAT_COL])),
+          opacity: 0.8
+        },
+        hovertemplate: '<b>%{text}</b><br>GDP: %{x:$,.0f}<br>CO₂: %{y:.2f}<br>Energy: %{customdata[0]:.0f}<br>Region: %{customdata[1]}<extra></extra>',
+        showlegend: false
+      });
+
+      panelLayout[xAxis] = {
+        domain: [col * (width + gap), col * (width + gap) + width],
+        range: xRange,
+        anchor: yRef,
+        title: row === rows - 1 ? 'GDP per capita (USD)' : undefined,
+        tickformat: '~s'
+      };
+      panelLayout[yAxis] = {
+        domain: [1 - (row + 1) * height - row * gap, 1 - row * (height + gap)],
+        range: yRange,
+        anchor: xRef,
+        title: col === 0 ? 'CO₂ per capita' : undefined,
+        tickformat: '~s'
+      };
+      panelLayout[`annotations`] = (panelLayout.annotations || []).concat({
+        text: String(year),
+        x: col * (width + gap) + width / 2,
+        y: 1 - row * (height + gap) + 0.025,
+        xref: 'paper',
+        yref: 'paper',
+        showarrow: false,
+        font: { size: 14, color: '#243657' }
+      });
+    });
+
+    Plotly.react('chart', traces, {
+      ...panelLayout,
+      title: { text: 'GDP and CO₂ by Country, One Panel per Year', font: { size: 18 } },
+      margin: { l: 65, r: 20, t: 65, b: 55 },
+      height: 650,
+      hoverlabel: { bgcolor: '#1f3864', font: { color: '#fff' } }
+    }, { responsive: true, displaylogo: false });
+    d3.select('#status').text(`${data.length} points shown in ${years.length} panels; all panels share the same scales`);
+  }
+
+  let animationTimer = null;
+  let animationIndex = 0;
+  function drawAnimationFrame() {
+    const frame = years[animationIndex];
+    const visible = data.filter(d => d[FRAME_COL] === frame);
+    const trace = {
+      type: 'scatter',
+      mode: 'markers',
+      x: visible.map(d => d[X_COL]),
+      y: visible.map(d => d[Y_COL]),
+      text: visible.map(d => d[LABEL_COL]),
+      customdata: visible.map(d => [d[Z_COL], d[CAT_COL]]),
+      marker: { size: 9, color: visible.map(d => color(d[CAT_COL])), opacity: 0.8 },
+      hovertemplate: '<b>%{text}</b><br>GDP: %{x:$,.0f}<br>CO₂: %{y:.2f}<br>Energy: %{customdata[0]:.0f}<br>Region: %{customdata[1]}<extra></extra>',
+      showlegend: false
+    };
+    Plotly.react('chart', [trace], {
+      title: { text: `GDP and CO₂ by Country — Year ${frame}`, font: { size: 18 } },
+      margin: { l: 65, r: 20, t: 55, b: 55 },
+      xaxis: { title: 'GDP per capita (USD)', range: d3.extent(data, d => d[X_COL]), tickformat: '~s' },
+      yaxis: { title: 'CO₂ per capita', range: d3.extent(data, d => d[Y_COL]), tickformat: '~s' },
+      height: 610,
+      hoverlabel: { bgcolor: '#1f3864', font: { color: '#fff' } }
+    }, { responsive: true, displaylogo: false });
+    d3.select('#status').text(`Frame: ${frame} (${visible.length} points)`);
+  }
+
+  let tooltipTimer = null;
+  function drawInteraction(selectedYear, delayed) {
+    const visible = selectedYear === 'all'
+      ? data
+      : data.filter(d => String(d[FRAME_COL]) === selectedYear);
+    const trace = {
+      type: 'scatter',
+      mode: 'markers',
+      x: visible.map(d => d[X_COL]),
+      y: visible.map(d => d[Y_COL]),
+      text: visible.map(d => d[LABEL_COL]),
+      customdata: visible.map(d => [d[Z_COL], d[FRAME_COL], d[CAT_COL]]),
+      marker: {
+        size: 10,
+        color: visible.map(d => color(d[CAT_COL])),
+        opacity: 0.8,
+        line: { color: '#fff', width: 1 }
+      },
+      selected: { marker: { size: 15, line: { color: '#111', width: 3 } } },
+      unselected: { marker: { opacity: 0.3 } },
+      hovertemplate: delayed ? '<extra></extra>' : '<b>%{text}</b><br>GDP: %{x:$,.0f}<br>CO₂: %{y:.2f}<br>Energy: %{customdata[0]:.0f}<br>Year: %{customdata[1]}<br>Region: %{customdata[2]}<extra></extra>',
+      showlegend: false
+    };
+    const interactionLayout = {
+      title: { text: delayed ? 'GDP and CO₂ by Country — Delayed Tooltip' : 'GDP and CO₂ by Country — Hover and Click a Point', font: { size: 18 } },
+      margin: { l: 65, r: 20, t: 55, b: 55 },
+      xaxis: { title: 'GDP per capita (USD)', range: d3.extent(data, d => d[X_COL]), tickformat: '~s' },
+      yaxis: { title: 'CO₂ per capita', range: d3.extent(data, d => d[Y_COL]), tickformat: '~s' },
+      height: 610,
+      hoverlabel: { bgcolor: '#1f3864', font: { color: '#fff' } }
+    };
+    Plotly.react('chart', [trace], interactionLayout, { responsive: true, displaylogo: false })
+      .then(chart => {
+        chart.removeAllListeners('plotly_click');
+        chart.removeAllListeners('plotly_hover');
+        chart.removeAllListeners('plotly_unhover');
+        if (delayed) {
+          chart.on('plotly_hover', event => {
+            clearTimeout(tooltipTimer);
+            const point = event.points[0];
+            const item = visible[point.pointNumber];
+            tooltipTimer = setTimeout(() => {
+              const position = event.event || {};
+              const chartBox = document.querySelector('#chart').getBoundingClientRect();
+              d3.select('#tip')
+                .style('opacity', 1)
+                .style('left', `${(position.pageX || chartBox.left + chartBox.width / 2) + 14}px`)
+                .style('top', `${(position.pageY || chartBox.top + chartBox.height / 2) - 12}px`)
+                .html(`<b>${item[LABEL_COL]}</b><br>GDP: $${item[X_COL].toLocaleString()}<br>CO₂: ${item[Y_COL].toFixed(2)} tonnes<br>Energy: ${item[Z_COL].toLocaleString()}<br>Year: ${item[FRAME_COL]}`);
+            }, TOOLTIP_DELAY_MS);
+          });
+          chart.on('plotly_unhover', () => {
+            clearTimeout(tooltipTimer);
+            d3.select('#tip').style('opacity', 0);
+          });
+        }
+        chart.on('plotly_click', event => {
+          const point = event.points[0];
+          Plotly.restyle(chart, { selectedpoints: [[point.pointNumber]] });
+          const item = visible[point.pointNumber];
+          d3.select('#status').text(
+            `Selected: ${item[LABEL_COL]} — GDP $${item[X_COL].toLocaleString()}, ` +
+            `CO₂ ${item[Y_COL].toFixed(2)} tonnes`
+          );
+        });
+      });
+    d3.select('#status').text(delayed
+      ? `${visible.length} points shown; hover for 2 seconds to see the tooltip`
+      : `${visible.length} points shown; hover for values, click a point to select it`);
+  }
+
+  function stopAnimation() {
+    clearInterval(animationTimer);
+    animationTimer = null;
+    d3.select('#play-animation').text('Play animation');
+  }
+
+  function updateControls() {
+    const showCamera = currentView === '3d' || currentView === 'rotated';
+    d3.select('#reset-camera').style('display', showCamera ? null : 'none');
+    d3.select('#play-animation').style('display', currentView === 'animation' ? null : 'none');
+  }
+
+  function startAnimation() {
+    stopAnimation();
+    animationTimer = setInterval(() => {
+      animationIndex = (animationIndex + 1) % years.length;
+      drawAnimationFrame();
+    }, 1200);
+    d3.select('#play-animation').text('Pause animation');
+  }
+
+  let currentView = '3d';
+  function draw(selectedYear) {
+    updateControls();
+    if (currentView === 'bars') drawBars(selectedYear);
+    else if (currentView === 'small-multiples') drawSmallMultiples();
+    else if (currentView === 'animation') drawAnimationFrame();
+    else if (currentView === 'interaction') drawInteraction(selectedYear);
+    else if (currentView === 'delayed') drawInteraction(selectedYear, true);
+    else draw3D(selectedYear, currentView === 'rotated');
+  }
+
+  d3.selectAll('.switch').on('click', function () {
+    const buttons = [...document.querySelectorAll('.switch')];
+    const index = buttons.indexOf(this);
+    clearTimeout(tooltipTimer);
+    d3.select('#tip').style('opacity', 0);
+    if (index !== 4) stopAnimation();
+    if (index === 0 || index === 1) {
+      currentView = '3d';
+      if (index === 1) currentView = 'rotated';
+      d3.selectAll('.switch').classed('active', false);
+      d3.select(this).classed('active', true);
+      draw(filter.property('value'));
+    } else if (index === 2) {
+      currentView = 'bars';
+      d3.selectAll('.switch').classed('active', false);
+      d3.select(this).classed('active', true);
+      draw(filter.property('value'));
+    } else if (index === 3) {
+      stopAnimation();
+      currentView = 'small-multiples';
+      d3.selectAll('.switch').classed('active', false);
+      d3.select(this).classed('active', true);
+      draw('all');
+    } else if (index === 4) {
+      currentView = 'animation';
+      animationIndex = 0;
+      d3.selectAll('.switch').classed('active', false);
+      d3.select(this).classed('active', true);
+      draw('all');
+    } else if (index === 5) {
+      currentView = 'interaction';
+      d3.selectAll('.switch').classed('active', false);
+      d3.select(this).classed('active', true);
+      draw(filter.property('value'));
+    } else if (index === 6) {
+      currentView = 'delayed';
+      d3.selectAll('.switch').classed('active', false);
+      d3.select(this).classed('active', true);
+      draw(filter.property('value'));
+    }
+  });
+  filter.on('change', event => draw(event.target.value));
+  d3.select('#play-animation').on('click', () => {
+    if (animationTimer) stopAnimation();
+    else startAnimation();
+  });
+  d3.select('#reset-camera').on('click', () => Plotly.relayout('chart', {
+    'scene.camera': currentView === 'rotated'
+      ? { eye: { x: -1.7, y: 1.3, z: 1.1 } }
+      : { eye: { x: 1.6, y: 1.6, z: 1.2 } }
+  }));
+  updateControls();
+  draw3D('all', false);
+
+}).catch(e => d3.select('#status').html('<b style="color:#b00">Load failed:</b> ' + e));
+</script>
+</body>
+</html>

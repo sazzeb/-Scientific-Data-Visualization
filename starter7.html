@@ -1,0 +1,2647 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CSCE 5320 — HW7: Arrange Tables</title>
+
+  <script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --background: #ffffff;
+      --foreground: #171b1a;
+      --muted: #626d68;
+      --accent: #007a32;
+      --border: #dce5df;
+      --surface: #f5f8f6;
+      --missing: #e8ecea;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 28px 24px 72px;
+    }
+
+    h1 {
+      font-size: clamp(24px, 3vw, 34px);
+      margin: 0 0 6px;
+    }
+
+    h2 {
+      font-size: 22px;
+      margin: 0 0 8px;
+    }
+
+    p {
+      line-height: 1.55;
+    }
+
+    .subtitle,
+    .note,
+    #status {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    #status {
+      min-height: 24px;
+      margin: 12px 0;
+    }
+
+    #status.error {
+      color: #a21e1e;
+    }
+
+    .source-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin: 18px 0;
+    }
+
+    .file-picker {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .file-picker input {
+      max-width: 260px;
+    }
+
+    .tabs,
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tabs {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin: 20px 0 26px;
+    }
+
+    .controls {
+      margin: 16px 0;
+    }
+
+    button {
+      font: inherit;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      color: var(--foreground);
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.on,
+    button[aria-pressed="true"] {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      outline: 3px solid #82d5a1;
+      outline-offset: 2px;
+    }
+
+    .panel[hidden] {
+      display: none;
+    }
+
+    .panel {
+      min-width: 0;
+    }
+
+    .chart-frame {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 12px;
+      padding: 8px;
+    }
+
+    svg {
+      display: block;
+      max-width: none;
+    }
+
+    .figure-title {
+      font-size: 17px;
+      font-weight: 650;
+      margin: 20px 0 12px;
+    }
+
+    .axis text {
+      font-size: 11px;
+      fill: #52615a;
+    }
+
+    .axis path,
+    .axis line {
+      stroke: #bcc7c1;
+    }
+
+    .axis-label {
+      font-size: 13px;
+      font-weight: 600;
+      fill: #344039;
+    }
+
+    .bar {
+      fill: var(--accent);
+    }
+
+    .chart-note {
+      font-size: 12px;
+      fill: var(--muted);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      border-collapse: collapse;
+      min-width: 700px;
+      width: 100%;
+      margin: 16px 0;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--border);
+      padding: 11px 13px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--surface);
+    }
+
+    .ranking-form {
+      margin-top: 18px;
+    }
+
+    .ranking-fields {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .ranking-field {
+      display: grid;
+      gap: 5px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    select {
+      min-width: 175px;
+      max-width: 230px;
+      padding: 9px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: #fff;
+      font: inherit;
+    }
+
+    #rank-result {
+      white-space: pre-line;
+      line-height: 1.6;
+      padding: 10px 0;
+    }
+
+    .chart-line {
+      fill: none;
+      stroke-width: 1.6;
+      opacity: 0.45;
+    }
+
+    .chart-line:hover {
+      opacity: 1;
+      stroke-width: 3;
+    }
+
+    @media (max-width: 650px) {
+      main {
+        padding: 18px 12px 48px;
+      }
+
+      .file-picker {
+        flex-wrap: wrap;
+      }
+
+      .tabs button,
+      .controls button {
+        flex-grow: 1;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<main>
+  <header>
+    <h1>HW7 — Arrange Tables</h1>
+
+    <p class="subtitle">
+      Questions 1–3 · Data arrangement and visual comparison
+    </p>
+
+    <div class="source-bar">
+      <label class="file-picker" for="csv-file">
+        Load a CSV if the public source is unavailable:
+        <input
+          id="csv-file"
+          type="file"
+          accept=".csv,text/csv"
+        >
+      </label>
+    </div>
+
+    <div id="status" role="status" aria-live="polite">
+      Loading dataset...
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Homework questions">
+    <button data-panel="q1a" aria-pressed="false">
+      Q1 · Part A
+    </button>
+
+    <button data-panel="q1b" aria-pressed="false">
+      Q1 · Part B
+    </button>
+
+    <button data-panel="q1c" aria-pressed="false">
+      Q1 · Part C
+    </button>
+
+    <button data-panel="q2" aria-pressed="false">
+      Q2 · Parts A–B
+    </button>
+
+    <button data-panel="q3a" aria-pressed="false">
+      Q3 · Part A
+    </button>
+
+    <button class="on" data-panel="q3b" aria-pressed="true">
+      Q3 · Part B
+    </button>
+  </nav>
+
+  <!-- Question 1: Part A -->
+
+  <section id="q1a" class="panel" hidden>
+    <h2>Question 1 — Part A: Abstract the Table</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Column</th>
+            <th>Key or value?</th>
+            <th>Type</th>
+            <th>Levels (if a key)</th>
+            <th>Role in the charts</th>
+          </tr>
+        </thead>
+
+        <tbody id="schema-body"></tbody>
+      </table>
+    </div>
+
+    <p>
+      A quantitative value can occupy a measured position on an axis
+      because its numerical differences have meaning. Categorical keys
+      identify distinct groups rather than measured distances, so
+      their regions must be separated, ordered, and aligned.
+    </p>
+  </section>
+
+  <!-- Question 1: Part B -->
+
+  <section id="q1b" class="panel" hidden>
+    <h2>Question 1 — Part B: One Key, Three Orderings</h2>
+
+    <div id="controls" class="controls">
+      <button id="b-alpha" class="on" aria-pressed="true">
+        Order: alphabetical
+      </button>
+
+      <button id="b-value" aria-pressed="false">
+        Order: by value
+      </button>
+
+      <button id="b-derived" aria-pressed="false">
+        Order: by derived attribute
+      </button>
+    </div>
+
+    <p id="q1b-title" class="figure-title">
+      Alphabetical ordering
+    </p>
+
+    <div class="chart-frame">
+      <svg
+        id="chart"
+        role="img"
+        aria-label="Ordered bar chart"
+      ></svg>
+    </div>
+
+    <p id="q1b-note" class="note"></p>
+  </section>
+
+  <!-- Question 1: Part C -->
+
+  <section id="q1c" class="panel" hidden>
+    <h2>Question 1 — Part C: Two Keys, Two Alignments</h2>
+
+    <div class="controls">
+      <button id="b-stacked" class="on" aria-pressed="true">
+        Stacked bars
+      </button>
+
+      <button id="b-grouped" aria-pressed="false">
+        Grouped bars
+      </button>
+    </div>
+
+    <p id="q1c-title" class="figure-title">
+      Stacked bars
+    </p>
+
+    <div class="chart-frame">
+      <svg
+        id="two-key-chart"
+        role="img"
+        aria-label="Two-key bar chart"
+      ></svg>
+    </div>
+
+    <p id="q1c-note" class="note"></p>
+  </section>
+
+  <!-- Question 2: Parts A and B -->
+
+  <section id="q2" class="panel" hidden>
+    <h2>Question 2 — Parts A–B: Matrix Alignment and Reordering</h2>
+
+    <div class="controls">
+      <button
+        id="b-matrix-original"
+        class="on"
+        aria-pressed="true"
+      >
+        Original row order
+      </button>
+
+      <button
+        id="b-matrix-reordered"
+        aria-pressed="false"
+      >
+        Reordered rows
+      </button>
+    </div>
+
+    <p id="q2-title" class="figure-title">
+      Original heatmap
+    </p>
+
+    <div class="chart-frame">
+      <svg
+        id="matrix-chart"
+        role="img"
+        aria-label="Country and year heatmap"
+      ></svg>
+    </div>
+
+    <p id="q2-note" class="note"></p>
+  </section>
+
+  <!-- Question 3: Part A -->
+
+  <section id="q3a" class="panel" hidden>
+    <h2>Question 3 — Part A: Radial Arrangement</h2>
+
+    <p id="q3a-title" class="figure-title">
+      Radial bar chart
+    </p>
+
+    <p id="q3a-note" class="note"></p>
+
+    <div class="chart-frame">
+      <svg
+        id="radial-chart"
+        role="img"
+        aria-label="Radial bar chart"
+      ></svg>
+    </div>
+
+    <div class="ranking-form">
+      <h3>Top-five ranking test</h3>
+
+      <div
+        id="ranking-fields"
+        class="ranking-fields"
+      ></div>
+
+      <button id="check-ranking">
+        Check my ranking
+      </button>
+
+      <div
+        id="rank-result"
+        role="status"
+        aria-live="polite"
+      ></div>
+    </div>
+  </section>
+
+  <!-- Question 3: Part B -->
+
+  <section id="q3b" class="panel">
+    <h2>Question 3 — Part B: Parallel Coordinates</h2>
+
+    <div class="controls">
+      <button
+        id="b-parallel-original"
+        aria-pressed="false"
+      >
+        Original axis order
+      </button>
+
+      <button
+        id="b-parallel-reordered"
+        class="on"
+        aria-pressed="true"
+      >
+        Reordered axes
+      </button>
+    </div>
+
+    <p id="q3b-title" class="figure-title">
+      Parallel coordinates with the last axis moved first
+    </p>
+
+    <div class="chart-frame">
+      <svg
+        id="parallel-chart"
+        role="img"
+        aria-label="Parallel coordinates chart"
+      ></svg>
+    </div>
+
+    <p id="q3b-note" class="note"></p>
+  </section>
+</main>
+
+<script>
+  // Shared settings for the dataset and visualizations.
+
+  const DATA_URL =
+    'https://gist.githubusercontent.com/sazzeb/a3e6671e8db74de4eab836f9770816e4/raw';
+
+  const NUMERIC = [
+    'year',
+    'population_millions',
+    'gdp_per_capita',
+    'co2_per_capita',
+    'co2_total_mt',
+    'renewable_pct',
+    'energy_per_capita'
+  ];
+
+  const KEY_COL = 'country';
+  const COUNTRY_CODE_COL = 'code';
+  const SECOND_KEY_COL = 'year';
+  const CATEGORY_COL = 'region';
+
+  // Annual total emissions can be added across years in stacked bars.
+  const VALUE_COL = 'co2_total_mt';
+
+  const FILTER_COL = 'year';
+  const FILTER_VAL = 2023;
+
+  const DIMENSIONS = [
+    'population_millions',
+    'gdp_per_capita',
+    'co2_per_capita',
+    'renewable_pct',
+    'energy_per_capita'
+  ];
+
+  const COLUMN_LABELS = {
+    country: 'Country',
+    year: 'Year',
+    region: 'Region',
+    population_millions: 'Population (millions)',
+    gdp_per_capita: 'GDP per capita',
+    co2_per_capita: 'CO₂ per capita',
+    co2_total_mt: 'Total CO₂ (Mt)',
+    renewable_pct: 'Renewable energy (%)',
+    energy_per_capita: 'Energy per capita'
+  };
+
+  const THEME = {
+    primary: '#007a32',
+    other: '#83928a',
+    missing: '#e8ecea',
+    years: d3.schemeTableau10,
+    regions: d3.schemeSet2.concat(d3.schemeTableau10)
+  };
+
+  // Load the public CSV. The file picker handles a local copy if needed.
+
+  class DatasetRepository {
+    static async loadAutomatically() {
+      try {
+        const csvText = await d3.text(DATA_URL);
+        return this.fromText(csvText, DATA_URL);
+      } catch (error) {
+        throw new Error(
+          'The public CSV could not be loaded. ' +
+          'Select a local CSV using the file picker. ' +
+          error.message
+        );
+      }
+    }
+
+    static fromText(csvText, sourceName) {
+      const parsed = d3.csvParse(csvText);
+
+      const requiredColumns = [...new Set([
+        KEY_COL,
+        SECOND_KEY_COL,
+        CATEGORY_COL,
+        VALUE_COL,
+        FILTER_COL,
+        ...DIMENSIONS
+      ])];
+
+      const missingColumns = requiredColumns.filter(
+        column => !parsed.columns.includes(column)
+      );
+
+      if (missingColumns.length > 0) {
+        throw new Error(
+          `Missing required CSV columns: ${missingColumns.join(', ')}`
+        );
+      }
+
+      const rows = parsed.map((record, index) => {
+        const row = {
+          ...record,
+          recordIndex: index
+        };
+
+        NUMERIC.forEach(column => {
+          const text = String(record[column] ?? '')
+            .trim()
+            .replaceAll(',', '');
+
+          row[column] = text === '' ? NaN : Number(text);
+        });
+
+        row[KEY_COL] = String(
+          record[KEY_COL] ?? ''
+        ).trim();
+
+        row[CATEGORY_COL] = String(
+          record[CATEGORY_COL] ?? ''
+        ).trim() || 'Unknown';
+
+        return row;
+      }).filter(row =>
+        row[KEY_COL] &&
+        Number.isFinite(row[SECOND_KEY_COL])
+      );
+
+      if (rows.length === 0) {
+        throw new Error(
+          'The CSV contains no usable country-year records.'
+        );
+      }
+
+      return {
+        rows,
+        columns: parsed.columns,
+        sourceName
+      };
+    }
+  }
+
+  // Prepare common data once so every comparison uses
+  // the same observations and measurements.
+
+  class DataAnalysis {
+    constructor(dataset) {
+      this.rows = dataset.rows;
+      this.columns = dataset.columns;
+      this.sourceName = dataset.sourceName;
+
+      this.keys = [
+        ...new Set(this.rows.map(row => row[KEY_COL]))
+      ].sort(d3.ascending);
+
+      this.years = [
+        ...new Set(this.rows.map(row => row[SECOND_KEY_COL]))
+      ].sort(d3.ascending);
+
+      this.selectedYear = this.years.includes(FILTER_VAL)
+        ? FILTER_VAL
+        : d3.max(this.years);
+
+      this.baselineYear = this.years.find(
+        year => year < this.selectedYear
+      );
+
+      this.crossTable = this.buildCrossTable();
+      this.singleKeyRows = this.buildSingleKeyRows();
+      this.radialData = this.buildRadialData();
+      this.parallelRows = this.buildParallelRows();
+    }
+
+    static meanOf(records, attribute) {
+      const result = d3.mean(
+        records,
+        row => Number.isFinite(row[attribute])
+          ? row[attribute]
+          : undefined
+      );
+
+      return Number.isFinite(result) ? result : null;
+    }
+
+    buildCrossTable() {
+      const groups = d3.group(
+        this.rows,
+        row => row[KEY_COL],
+        row => row[SECOND_KEY_COL]
+      );
+
+      const cells = [];
+
+      this.keys.forEach(key => {
+        this.years.forEach(year => {
+          const records = groups.get(key)?.get(year) ?? [];
+
+          cells.push({
+            key,
+            year,
+            value: DataAnalysis.meanOf(records, VALUE_COL)
+          });
+        });
+      });
+
+      return {
+        keys: this.keys,
+        years: this.years,
+        cells,
+        missingCount: cells.filter(
+          cell => cell.value === null
+        ).length
+      };
+    }
+
+    buildSingleKeyRows() {
+      const groups = d3.group(
+        this.rows,
+        row => row[KEY_COL],
+        row => row[SECOND_KEY_COL]
+      );
+
+      const result = [];
+
+      this.keys.forEach(key => {
+        const yearsForKey = groups.get(key);
+
+        const current = DataAnalysis.meanOf(
+          yearsForKey?.get(this.selectedYear) ?? [],
+          VALUE_COL
+        );
+
+        const baseline = DataAnalysis.meanOf(
+          yearsForKey?.get(this.baselineYear) ?? [],
+          VALUE_COL
+        );
+
+        if (current === null) {
+          return;
+        }
+
+        const derived =
+          baseline !== null && baseline !== 0
+            ? ((current - baseline) / Math.abs(baseline)) * 100
+            : null;
+
+        result.push({
+          key,
+          value: current,
+          derived
+        });
+      });
+
+      return result;
+    }
+
+    buildRadialData() {
+      const rankedCountries = this.singleKeyRows
+        .filter(row => Number.isFinite(row.value) && row.value >= 0)
+        .slice()
+        .sort((a, b) =>
+          d3.descending(a.value, b.value) ||
+          d3.ascending(a.key, b.key)
+        );
+
+      const maxBars = 12;
+      const countrySlots = rankedCountries.length > maxBars
+        ? maxBars - 1
+        : maxBars;
+
+      const countries = rankedCountries.slice(0, countrySlots);
+      const remainingCountries = rankedCountries.slice(countrySlots);
+      const bars = countries.slice();
+
+      if (remainingCountries.length > 0) {
+        bars.push({
+          key: 'Other',
+          value: d3.sum(remainingCountries, row => row.value),
+          countryCount: remainingCountries.length,
+          isOther: true
+        });
+      }
+
+      const rankedBars = bars.slice().sort((a, b) =>
+        d3.descending(a.value, b.value) ||
+        d3.ascending(a.key, b.key)
+      );
+
+      return { bars, rankedBars };
+    }
+
+    buildParallelRows() {
+      const selected = this.rows.filter(
+        row => row[FILTER_COL] === this.selectedYear
+      );
+
+      const grouped = d3.group(
+        selected,
+        row => row[KEY_COL]
+      );
+
+      const result = [];
+
+      grouped.forEach((records, key) => {
+        const values = Object.fromEntries(
+          DIMENSIONS.map(attribute => [
+            attribute,
+            DataAnalysis.meanOf(records, attribute)
+          ])
+        );
+
+        if (DIMENSIONS.some(
+          attribute => values[attribute] === null
+        )) {
+          return;
+        }
+
+        result.push({
+          key,
+          region: records.find(
+            row => row[CATEGORY_COL]
+          )?.[CATEGORY_COL] ?? 'Unknown',
+          ...values
+        });
+      });
+
+      return result.sort(
+        (a, b) => d3.ascending(a.key, b.key)
+      );
+    }
+
+    schema() {
+      return this.columns.map(column => {
+        const isKey = [
+          KEY_COL,
+          COUNTRY_CODE_COL,
+          SECOND_KEY_COL,
+          CATEGORY_COL
+        ].includes(column);
+
+        let type = 'Text';
+
+        if (column === SECOND_KEY_COL) {
+          type = 'Ordinal';
+        } else if (isKey) {
+          type = 'Categorical';
+        } else if (NUMERIC.includes(column)) {
+          type = 'Quantitative';
+        }
+
+        const levels = isKey
+          ? new Set(
+              this.rows
+                .map(row => row[column])
+                .filter(value => value !== '')
+            ).size
+          : '—';
+
+        let role = 'Additional attribute';
+
+        if (column === KEY_COL) {
+          role = 'Primary axis; one bar or matrix row per level';
+        }
+
+        if (column === COUNTRY_CODE_COL) {
+          role = 'Alternate identifier for each country';
+        }
+
+        if (column === SECOND_KEY_COL) {
+          role = 'Secondary bar groups and matrix columns';
+        }
+
+        if (column === CATEGORY_COL) {
+          role = 'Colour groups for parallel coordinates';
+        }
+
+        if (column === VALUE_COL) {
+          role = 'Bar size, heatmap colour, and radial bar length';
+        }
+
+        if (DIMENSIONS.includes(column)) {
+          role = 'Parallel coordinates axis';
+        }
+
+        if (
+          column === VALUE_COL &&
+          DIMENSIONS.includes(column)
+        ) {
+          role = 'Main quantitative value and parallel coordinates axis';
+        }
+
+        return {
+          column,
+          category: isKey ? 'Key' : 'Value',
+          type,
+          levels,
+          role
+        };
+      });
+    }
+
+    warnings() {
+      const notes = [];
+
+      if (this.rows.length < 100) {
+        notes.push('Fewer than 100 records.');
+      }
+
+      if (
+        this.keys.length < 10 ||
+        this.keys.length > 50
+      ) {
+        notes.push(
+          `Primary key has ${this.keys.length} levels; ` +
+          'the target is 10–50.'
+        );
+      }
+
+      if (
+        this.years.length < 4 ||
+        this.years.length > 12
+      ) {
+        notes.push(
+          `Secondary key has ${this.years.length} levels; ` +
+          'the target is 4–12.'
+        );
+      }
+
+      if (this.crossTable.missingCount) {
+        notes.push(
+          `${this.crossTable.missingCount} missing or ` +
+          'nonnumeric key combinations.'
+        );
+      }
+
+      return notes;
+    }
+  }
+
+  // Shared drawing utilities.
+
+  class ChartUtils {
+    static reset(svg, width, height) {
+      svg
+        .attr('width', width)
+        .attr('height', height)
+        .attr('viewBox', `0 0 ${width} ${height}`);
+
+      svg.selectAll('*').remove();
+    }
+
+    static label(attribute) {
+      return COLUMN_LABELS[attribute] ??
+        attribute.replaceAll('_', ' ');
+    }
+
+    static number(value) {
+      return Number.isFinite(value)
+        ? d3.format(',.3~f')(value)
+        : 'Missing';
+    }
+
+    static safeExtent(values) {
+      const [minimum, maximum] = d3.extent(
+        values.filter(Number.isFinite)
+      );
+
+      if (minimum === undefined) {
+        return [0, 1];
+      }
+
+      if (minimum === maximum) {
+        const spread = Math.abs(minimum) * 0.05 || 1;
+
+        return [
+          minimum - spread,
+          maximum + spread
+        ];
+      }
+
+      return [minimum, maximum];
+    }
+
+    static updateButtons(buttonIds, activeId) {
+      buttonIds.forEach(id => {
+        const button = d3.select(`#${id}`);
+        const active = id === activeId;
+
+        button
+          .classed('on', active)
+          .attr('aria-pressed', String(active));
+      });
+    }
+
+    static addValueAxis(plot, scale, height, label) {
+      plot
+        .append('g')
+        .attr('class', 'axis')
+        .call(d3.axisLeft(scale).ticks(6));
+
+      plot
+        .append('text')
+        .attr('class', 'axis-label')
+        .attr('transform', 'rotate(-90)')
+        .attr('x', -height / 2)
+        .attr('y', -66)
+        .attr('text-anchor', 'middle')
+        .text(label);
+    }
+
+    static addCategoryAxis(plot, scale, height) {
+      plot
+        .append('g')
+        .attr('class', 'axis')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(scale))
+        .selectAll('text')
+        .attr('transform', 'rotate(-60)')
+        .attr('text-anchor', 'end')
+        .attr('dx', '-0.55em')
+        .attr('dy', '0.15em');
+    }
+
+    static addLegend(
+      svg,
+      entries,
+      color,
+      x,
+      y,
+      step = 115
+    ) {
+      const legend = svg
+        .append('g')
+        .attr('transform', `translate(${x},${y})`);
+
+      const groups = legend
+        .selectAll('g')
+        .data(entries)
+        .join('g')
+        .attr(
+          'transform',
+          (_, index) => `translate(${index * step},0)`
+        );
+
+      groups
+        .append('rect')
+        .attr('width', 13)
+        .attr('height', 13)
+        .attr('rx', 2)
+        .attr('fill', entry => color(String(entry)));
+
+      groups
+        .append('text')
+        .attr('x', 19)
+        .attr('y', 11)
+        .style('font-size', '12px')
+        .text(String);
+    }
+  }
+
+  // Question 1B:
+  // Keep the starter's reusable chart and chainable settings.
+
+  function barChart() {
+    let width = 1100;
+    let height = 500;
+    let data = [];
+
+    let keyValue = row => row.key;
+    let value = row => row.value;
+    let derivedValue = row => row.derived;
+
+    let order = 'alpha';
+    let valueLabel = ChartUtils.label(VALUE_COL);
+
+    const margin = {
+      top: 22,
+      right: 32,
+      bottom: 142,
+      left: 95
+    };
+
+    function chart(selection) {
+      const innerWidth =
+        width - margin.left - margin.right;
+
+      const innerHeight =
+        height - margin.top - margin.bottom;
+
+      const rows = data
+        .filter(row => Number.isFinite(value(row)))
+        .slice();
+
+      const byName = (a, b) =>
+        d3.ascending(keyValue(a), keyValue(b));
+
+      if (order === 'alpha') {
+        rows.sort(byName);
+      }
+
+      if (order === 'value') {
+        rows.sort(
+          (a, b) =>
+            d3.descending(value(a), value(b)) ||
+            byName(a, b)
+        );
+      }
+
+      if (order === 'derived') {
+        rows.sort((a, b) => {
+          const first = derivedValue(a);
+          const second = derivedValue(b);
+
+          if (!Number.isFinite(first)) {
+            return Number.isFinite(second)
+              ? 1
+              : byName(a, b);
+          }
+
+          if (!Number.isFinite(second)) {
+            return -1;
+          }
+
+          return (
+            d3.descending(first, second) ||
+            byName(a, b)
+          );
+        });
+      }
+
+      ChartUtils.reset(selection, width, height);
+
+      const plot = selection
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${margin.left},${margin.top})`
+        );
+
+      const x = d3
+        .scaleBand()
+        .domain(rows.map(keyValue))
+        .range([0, innerWidth])
+        .padding(0.18);
+
+      const maximum = d3.max(rows, value) ?? 0;
+
+      const y = d3
+        .scaleLinear()
+        .domain([0, Math.max(1, maximum)])
+        .nice()
+        .range([innerHeight, 0]);
+
+      ChartUtils.addCategoryAxis(
+        plot,
+        x,
+        innerHeight
+      );
+
+      ChartUtils.addValueAxis(
+        plot,
+        y,
+        innerHeight,
+        valueLabel
+      );
+
+      plot
+        .selectAll('rect.bar')
+        .data(rows)
+        .join('rect')
+        .attr('class', 'bar')
+        .attr('x', row => x(keyValue(row)))
+        .attr('width', x.bandwidth())
+        .attr(
+          'y',
+          row => y(Math.max(0, value(row)))
+        )
+        .attr(
+          'height',
+          row => innerHeight - y(Math.max(0, value(row)))
+        )
+        .append('title')
+        .text(row =>
+          `${keyValue(row)}\n` +
+          `${valueLabel}: ${ChartUtils.number(value(row))}\n` +
+          `Derived change: ${ChartUtils.number(derivedValue(row))}%`
+        );
+    }
+
+    chart.width = next =>
+      next === undefined
+        ? width
+        : (width = next, chart);
+
+    chart.height = next =>
+      next === undefined
+        ? height
+        : (height = next, chart);
+
+    chart.data = next =>
+      next === undefined
+        ? data
+        : (data = next, chart);
+
+    chart.keyValue = next =>
+      next === undefined
+        ? keyValue
+        : (keyValue = next, chart);
+
+    chart.value = next =>
+      next === undefined
+        ? value
+        : (value = next, chart);
+
+    chart.derivedValue = next =>
+      next === undefined
+        ? derivedValue
+        : (derivedValue = next, chart);
+
+    chart.order = next =>
+      next === undefined
+        ? order
+        : (order = next, chart);
+
+    chart.valueLabel = next =>
+      next === undefined
+        ? valueLabel
+        : (valueLabel = next, chart);
+
+    return chart;
+  }
+
+  // Question 1C:
+  // Use the same data for stacked and grouped bars.
+
+  class TwoKeyBarChart {
+    render(svg, table, mode) {
+      const {
+        keys,
+        years,
+        cells
+      } = table;
+
+      const margin = {
+        top: 30,
+        right: 28,
+        bottom: 143,
+        left: 95
+      };
+
+      const columnWidth = mode === 'grouped'
+        ? Math.max(70, years.length * 11 + 12)
+        : 32;
+
+      const width = Math.max(
+        1140,
+        keys.length * columnWidth +
+        margin.left +
+        margin.right
+      );
+
+      const height = 560;
+
+      const innerWidth =
+        width - margin.left - margin.right;
+
+      const innerHeight =
+        height - margin.top - margin.bottom;
+
+      ChartUtils.reset(svg, width, height);
+
+      const lookup = d3.index(
+        cells,
+        cell => cell.key,
+        cell => cell.year
+      );
+
+      const rows = keys.map(key => ({
+        key,
+        ...Object.fromEntries(
+          years.map(year => [
+            year,
+            lookup.get(key)?.get(year)?.value ?? null
+          ])
+        )
+      }));
+
+      const maximum = mode === 'stacked'
+        ? d3.max(
+            rows,
+            row => d3.sum(
+              years,
+              year => Math.max(0, row[year] ?? 0)
+            )
+          )
+        : d3.max(
+            cells,
+            cell => cell.value ?? 0
+          );
+
+      const x = d3
+        .scaleBand()
+        .domain(keys)
+        .range([0, innerWidth])
+        .padding(0.16);
+
+      const y = d3
+        .scaleLinear()
+        .domain([0, Math.max(1, maximum ?? 0)])
+        .nice()
+        .range([innerHeight, 0]);
+
+      const color = d3
+        .scaleOrdinal()
+        .domain(years.map(String))
+        .range(THEME.years);
+
+      const plot = svg
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${margin.left},${margin.top})`
+        );
+
+      ChartUtils.addCategoryAxis(
+        plot,
+        x,
+        innerHeight
+      );
+
+      ChartUtils.addValueAxis(
+        plot,
+        y,
+        innerHeight,
+        ChartUtils.label(VALUE_COL)
+      );
+
+      if (mode === 'stacked') {
+        const series = d3
+          .stack()
+          .keys(years)
+          .value(
+            (row, year) => Math.max(0, row[year] ?? 0)
+          )(rows);
+
+        plot
+          .selectAll('g.series')
+          .data(series)
+          .join('g')
+          .attr('class', 'series')
+          .attr(
+            'fill',
+            group => color(String(group.key))
+          )
+          .each(function(group) {
+            d3
+              .select(this)
+              .selectAll('rect')
+              .data(
+                group.filter(point => point[1] > point[0])
+              )
+              .join('rect')
+              .attr(
+                'x',
+                point => x(point.data.key)
+              )
+              .attr(
+                'y',
+                point => y(point[1])
+              )
+              .attr(
+                'width',
+                x.bandwidth()
+              )
+              .attr(
+                'height',
+                point => y(point[0]) - y(point[1])
+              )
+              .append('title')
+              .text(point =>
+                `${point.data.key} · ${group.key}\n` +
+                `${ChartUtils.label(VALUE_COL)}: ` +
+                ChartUtils.number(point.data[group.key])
+              );
+          });
+      } else {
+        const innerX = d3
+          .scaleBand()
+          .domain(years)
+          .range([0, x.bandwidth()])
+          .padding(0.06);
+
+        plot
+          .selectAll('g.country')
+          .data(rows)
+          .join('g')
+          .attr('class', 'country')
+          .attr(
+            'transform',
+            row => `translate(${x(row.key)},0)`
+          )
+          .each(function(row) {
+            const entries = years
+              .map(year => ({
+                year,
+                value: row[year]
+              }))
+              .filter(
+                entry => Number.isFinite(entry.value)
+              );
+
+            d3
+              .select(this)
+              .selectAll('rect')
+              .data(entries)
+              .join('rect')
+              .attr(
+                'x',
+                entry => innerX(entry.year)
+              )
+              .attr(
+                'y',
+                entry => y(Math.max(0, entry.value))
+              )
+              .attr(
+                'width',
+                innerX.bandwidth()
+              )
+              .attr(
+                'height',
+                entry =>
+                  innerHeight -
+                  y(Math.max(0, entry.value))
+              )
+              .attr(
+                'fill',
+                entry => color(String(entry.year))
+              )
+              .append('title')
+              .text(entry =>
+                `${row.key} · ${entry.year}\n` +
+                `${ChartUtils.label(VALUE_COL)}: ` +
+                ChartUtils.number(entry.value)
+              );
+          });
+      }
+
+      ChartUtils.addLegend(
+        svg,
+        years,
+        color,
+        margin.left,
+        height - 28,
+        106
+      );
+    }
+  }
+
+  // Question 2:
+  // Only row ordering changes between the two heatmaps.
+
+  class HeatmapChart {
+    render(svg, table, mode) {
+      const {
+        keys,
+        years,
+        cells
+      } = table;
+
+      const rowMean = d3.rollup(
+        cells.filter(
+          cell => Number.isFinite(cell.value)
+        ),
+        records => d3.mean(
+          records,
+          record => record.value
+        ),
+        record => record.key
+      );
+
+      const orderedKeys = keys.slice();
+
+      if (mode === 'reordered') {
+        orderedKeys.sort(
+          (a, b) =>
+            d3.descending(
+              rowMean.get(a) ?? -Infinity,
+              rowMean.get(b) ?? -Infinity
+            ) ||
+            d3.ascending(a, b)
+        );
+      }
+
+      const width = 1060;
+
+      const height = Math.max(
+        650,
+        keys.length * 23 + 150
+      );
+
+      const margin = {
+        top: 58,
+        right: 38,
+        bottom: 112,
+        left: 175
+      };
+
+      const innerWidth =
+        width - margin.left - margin.right;
+
+      const innerHeight =
+        height - margin.top - margin.bottom;
+
+      ChartUtils.reset(svg, width, height);
+
+      const x = d3
+        .scaleBand()
+        .domain(years)
+        .range([0, innerWidth])
+        .padding(0.04);
+
+      const y = d3
+        .scaleBand()
+        .domain(orderedKeys)
+        .range([0, innerHeight])
+        .padding(0.08);
+
+      const values = cells
+        .map(cell => cell.value)
+        .filter(Number.isFinite);
+
+      const domain = ChartUtils.safeExtent(values);
+
+      const color = d3
+        .scaleSequential(d3.interpolateYlOrRd)
+        .domain(domain);
+
+      const plot = svg
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${margin.left},${margin.top})`
+        );
+
+      plot
+        .selectAll('rect.cell')
+        .data(cells)
+        .join('rect')
+        .attr('class', 'cell')
+        .attr(
+          'x',
+          cell => x(cell.year)
+        )
+        .attr(
+          'y',
+          cell => y(cell.key)
+        )
+        .attr(
+          'width',
+          x.bandwidth()
+        )
+        .attr(
+          'height',
+          y.bandwidth()
+        )
+        .attr(
+          'fill',
+          cell => cell.value === null
+            ? THEME.missing
+            : color(cell.value)
+        )
+        .append('title')
+        .text(cell =>
+          `${cell.key} · ${cell.year}\n` +
+          `${ChartUtils.label(VALUE_COL)}: ` +
+          ChartUtils.number(cell.value)
+        );
+
+      plot
+        .append('g')
+        .attr('class', 'axis')
+        .call(d3.axisTop(x));
+
+      plot
+        .append('g')
+        .attr('class', 'axis')
+        .call(d3.axisLeft(y).tickSize(0))
+        .select('.domain')
+        .remove();
+
+      const gradientId = 'heatmap-color-gradient';
+
+      const gradient = svg
+        .append('defs')
+        .append('linearGradient')
+        .attr('id', gradientId)
+        .attr('x1', '0%')
+        .attr('x2', '100%');
+
+      d3.range(0, 1.001, 0.1).forEach(fraction => {
+        gradient
+          .append('stop')
+          .attr(
+            'offset',
+            `${fraction * 100}%`
+          )
+          .attr(
+            'stop-color',
+            color(
+              domain[0] +
+              fraction * (domain[1] - domain[0])
+            )
+          );
+      });
+
+      const legendX = margin.left;
+      const legendY = height - 75;
+      const legendWidth = 330;
+
+      svg
+        .append('rect')
+        .attr('x', legendX)
+        .attr('y', legendY)
+        .attr('width', legendWidth)
+        .attr('height', 15)
+        .attr(
+          'fill',
+          `url(#${gradientId})`
+        );
+
+      const legendScale = d3
+        .scaleLinear()
+        .domain(domain)
+        .range([0, legendWidth]);
+
+      svg
+        .append('g')
+        .attr('class', 'axis')
+        .attr(
+          'transform',
+          `translate(${legendX},${legendY + 17})`
+        )
+        .call(
+          d3.axisBottom(legendScale).ticks(5)
+        );
+
+      svg
+        .append('text')
+        .attr('class', 'chart-note')
+        .attr('x', legendX)
+        .attr('y', legendY - 10)
+        .text(
+          ChartUtils.label(VALUE_COL)
+        );
+
+      svg
+        .append('rect')
+        .attr('x', legendX + 430)
+        .attr('y', legendY)
+        .attr('width', 16)
+        .attr('height', 15)
+        .attr('fill', THEME.missing);
+
+      svg
+        .append('text')
+        .attr('class', 'chart-note')
+        .attr('x', legendX + 454)
+        .attr('y', legendY + 12)
+        .text('Missing value');
+    }
+  }
+
+  // Question 3A:
+  // Radial bars represent the same key and quantitative value.
+
+  class RadialBarChart {
+    render(svg, bars, showValues = false) {
+      const width = 1100;
+      const height = 740;
+
+      const centerX = 385;
+      const centerY = 370;
+
+      const outerRadius = 278;
+      const innerRadius = 76;
+      const displayName = row => row.isOther
+        ? `Other (${row.countryCount} countries)`
+        : row.key;
+
+      ChartUtils.reset(svg, width, height);
+
+      const alphabetical = bars
+        .slice()
+        .sort(
+          (a, b) => d3.ascending(a.key, b.key)
+        );
+
+      const angle = d3
+        .scaleBand()
+        .domain(alphabetical.map(row => row.key))
+        .range([0, 2 * Math.PI])
+        .padding(0.13);
+
+      const maximum = d3.max(
+        alphabetical,
+        row => row.value
+      ) ?? 1;
+
+      const radius = d3
+        .scaleLinear()
+        .domain([0, Math.max(1, maximum)])
+        .range([innerRadius, outerRadius]);
+
+      const arc = d3
+        .arc()
+        .innerRadius(innerRadius)
+        .outerRadius(
+          row => radius(row.value)
+        )
+        .startAngle(
+          row => angle(row.key)
+        )
+        .endAngle(
+          row =>
+            angle(row.key) +
+            angle.bandwidth()
+        );
+
+      const plot = svg
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${centerX},${centerY})`
+        );
+
+      [0.25, 0.5, 0.75, 1].forEach(fraction => {
+        plot
+          .append('circle')
+          .attr(
+            'r',
+            innerRadius +
+            fraction * (outerRadius - innerRadius)
+          )
+          .attr('fill', 'none')
+          .attr('stroke', '#e1e8e3')
+          .attr('stroke-dasharray', '4 4');
+      });
+
+      plot
+        .selectAll('path.radial-bar')
+        .data(alphabetical)
+        .join('path')
+        .attr('class', 'radial-bar')
+        .attr('d', arc)
+        .attr('fill', row =>
+          row.isOther ? THEME.other : THEME.primary
+        )
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 1);
+
+      if (showValues) {
+        plot
+          .selectAll('path.radial-bar')
+          .append('title')
+          .text(row =>
+            `${displayName(row)}: ${ChartUtils.number(row.value)}`
+          );
+      }
+
+      const legend = svg
+        .append('g')
+        .attr(
+          'transform',
+          'translate(755,130)'
+        );
+
+      alphabetical.forEach((row, index) => {
+        const middle =
+          angle(row.key) +
+          angle.bandwidth() / 2;
+
+        const labelRadius = outerRadius + 29;
+
+        plot
+          .append('text')
+          .attr(
+            'x',
+            Math.sin(middle) * labelRadius
+          )
+          .attr(
+            'y',
+            -Math.cos(middle) * labelRadius + 4
+          )
+          .attr('text-anchor', 'middle')
+          .attr('font-size', '12px')
+          .attr('font-weight', '600')
+          .text(index + 1);
+
+        legend
+          .append('text')
+          .attr('x', 0)
+          .attr('y', index * 42)
+          .attr('font-size', '14px')
+          .text(`${index + 1}. ${displayName(row)}`);
+      });
+
+      const other = bars.find(row => row.isOther);
+      const summary = other
+        ? `${bars.length - 1} countries + Other ` +
+          `(${other.countryCount} countries)`
+        : `${bars.length} countries, shown alphabetically`;
+
+      svg
+        .append('text')
+        .attr('class', 'chart-note')
+        .attr('x', 755)
+        .attr('y', 90)
+        .text(summary);
+
+      svg
+        .append('text')
+        .attr('class', 'chart-note')
+        .attr('x', 755)
+        .attr('y', 670)
+        .text(
+          `Radial length: ${ChartUtils.label(VALUE_COL)}`
+        );
+    }
+  }
+
+  // Question 3B:
+  // Keep the data and scales unchanged while reordering axes.
+
+  class ParallelCoordinatesChart {
+    render(svg, rows, dimensions, mode) {
+      const width = 1240;
+      const height = 640;
+
+      const margin = {
+        top: 100,
+        right: 80,
+        bottom: 92,
+        left: 92
+      };
+
+      const innerWidth =
+        width - margin.left - margin.right;
+
+      const innerHeight =
+        height - margin.top - margin.bottom;
+
+      ChartUtils.reset(svg, width, height);
+
+      const orderedDimensions =
+        mode === 'reordered'
+          ? [
+              dimensions.at(-1),
+              ...dimensions.slice(0, -1)
+            ]
+          : dimensions.slice();
+
+      const x = d3
+        .scalePoint()
+        .domain(orderedDimensions)
+        .range([0, innerWidth])
+        .padding(0.04);
+
+      const y = Object.fromEntries(
+        dimensions.map(attribute => [
+          attribute,
+          d3
+            .scaleLinear()
+            .domain(
+              ChartUtils.safeExtent(
+                rows.map(row => row[attribute])
+              )
+            )
+            .nice()
+            .range([innerHeight, 0])
+        ])
+      );
+
+      const categories = [
+        ...new Set(rows.map(row => row.region))
+      ].sort(d3.ascending);
+
+      const color = d3
+        .scaleOrdinal()
+        .domain(categories)
+        .range(THEME.regions);
+
+      const line = d3.line();
+
+      const plot = svg
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${margin.left},${margin.top})`
+        );
+
+      plot
+        .selectAll('path.chart-line')
+        .data(rows)
+        .join('path')
+        .attr('class', 'chart-line')
+        .attr(
+          'd',
+          row => line(
+            orderedDimensions.map(attribute => [
+              x(attribute),
+              y[attribute](row[attribute])
+            ])
+          )
+        )
+        .attr(
+          'stroke',
+          row => color(row.region)
+        )
+        .append('title')
+        .text(row =>
+          `${row.key} · ${row.region}\n` +
+          dimensions.map(
+            attribute =>
+              `${ChartUtils.label(attribute)}: ` +
+              ChartUtils.number(row[attribute])
+          ).join('\n')
+        );
+
+      orderedDimensions.forEach(attribute => {
+        const axis = plot
+          .append('g')
+          .attr('class', 'axis')
+          .attr(
+            'transform',
+            `translate(${x(attribute)},0)`
+          )
+          .call(
+            d3.axisLeft(y[attribute]).ticks(6)
+          );
+
+        axis
+          .append('text')
+          .attr('class', 'axis-label')
+          .attr('x', 0)
+          .attr('y', -24)
+          .attr('text-anchor', 'middle')
+          .text(
+            ChartUtils.label(attribute)
+          );
+      });
+
+      ChartUtils.addLegend(
+        svg,
+        categories,
+        color,
+        margin.left,
+        height - 40,
+        150
+      );
+    }
+  }
+
+  // Manage the question panels, chart settings, and ranking test.
+
+  class HomeworkSevenApp {
+    constructor() {
+      this.analysis = null;
+      this.activePanel = 'q3b';
+
+      this.barOrder = 'alpha';
+      this.twoKeyMode = 'stacked';
+      this.matrixMode = 'original';
+      this.parallelMode = 'reordered';
+
+      this.rankingChecked = false;
+      this.manualSourceSelected = false;
+
+      this.bar = barChart()
+        .keyValue(row => row.key)
+        .value(row => row.value)
+        .derivedValue(row => row.derived)
+        .valueLabel(
+          ChartUtils.label(VALUE_COL)
+        );
+
+      this.twoKeyChart = new TwoKeyBarChart();
+      this.heatmapChart = new HeatmapChart();
+      this.radialChart = new RadialBarChart();
+      this.parallelChart = new ParallelCoordinatesChart();
+    }
+
+    initialize() {
+      d3
+        .selectAll('[data-panel]')
+        .on('click', event => {
+          this.openPanel(
+            event.currentTarget.dataset.panel
+          );
+        });
+
+      d3
+        .select('#b-alpha')
+        .on(
+          'click',
+          () => this.changeBarOrder('alpha')
+        );
+
+      d3
+        .select('#b-value')
+        .on(
+          'click',
+          () => this.changeBarOrder('value')
+        );
+
+      d3
+        .select('#b-derived')
+        .on(
+          'click',
+          () => this.changeBarOrder('derived')
+        );
+
+      d3
+        .select('#b-stacked')
+        .on(
+          'click',
+          () => this.changeTwoKeyMode('stacked')
+        );
+
+      d3
+        .select('#b-grouped')
+        .on(
+          'click',
+          () => this.changeTwoKeyMode('grouped')
+        );
+
+      d3
+        .select('#b-matrix-original')
+        .on(
+          'click',
+          () => this.changeMatrixMode('original')
+        );
+
+      d3
+        .select('#b-matrix-reordered')
+        .on(
+          'click',
+          () => this.changeMatrixMode('reordered')
+        );
+
+      d3
+        .select('#b-parallel-original')
+        .on(
+          'click',
+          () => this.changeParallelMode('original')
+        );
+
+      d3
+        .select('#b-parallel-reordered')
+        .on(
+          'click',
+          () => this.changeParallelMode('reordered')
+        );
+
+      d3
+        .select('#check-ranking')
+        .on(
+          'click',
+          () => this.checkRanking()
+        );
+
+      d3
+        .select('#csv-file')
+        .on('change', async event => {
+          const file = event.currentTarget.files?.[0];
+
+          if (!file) {
+            return;
+          }
+
+          this.manualSourceSelected = true;
+
+          try {
+            const csvText = await file.text();
+
+            const dataset = DatasetRepository.fromText(
+              csvText,
+              file.name
+            );
+
+            this.loadDataset(dataset);
+          } catch (error) {
+            this.setStatus(
+              error.message,
+              true
+            );
+          }
+        });
+
+      DatasetRepository
+        .loadAutomatically()
+        .then(dataset => {
+          if (!this.manualSourceSelected) {
+            this.loadDataset(dataset);
+          }
+        })
+        .catch(error => {
+          if (!this.manualSourceSelected) {
+            this.setStatus(
+              error.message,
+              true
+            );
+          }
+        });
+    }
+
+    setStatus(message, isError = false) {
+      d3
+        .select('#status')
+        .text(message)
+        .classed('error', isError);
+    }
+
+    loadDataset(dataset) {
+      this.analysis = new DataAnalysis(dataset);
+
+      this.barOrder = 'alpha';
+      this.twoKeyMode = 'stacked';
+      this.matrixMode = 'original';
+      this.parallelMode = 'reordered';
+
+      this.rankingChecked = false;
+
+      d3
+        .select('#rank-result')
+        .text('');
+
+      this.buildSchemaTable();
+      this.buildRankingFields();
+
+      const analysis = this.analysis;
+      const warnings = analysis.warnings();
+
+      this.setStatus(
+        `${analysis.rows.length} rows · ` +
+        `${analysis.keys.length} countries · ` +
+        `${analysis.years.length} years · ` +
+        `selected year: ${analysis.selectedYear}. ` +
+        `Source: ${analysis.sourceName}. ` +
+        warnings.join(' ')
+      );
+
+      this.openPanel(this.activePanel);
+    }
+
+    openPanel(panelId) {
+      this.activePanel = panelId;
+
+      d3
+        .selectAll('.panel')
+        .attr('hidden', function() {
+          return this.id === panelId
+            ? null
+            : true;
+        });
+
+      d3
+        .selectAll('[data-panel]')
+        .each(function() {
+          const active =
+            this.dataset.panel === panelId;
+
+          d3
+            .select(this)
+            .classed('on', active)
+            .attr(
+              'aria-pressed',
+              String(active)
+            );
+        });
+
+      if (!this.analysis) {
+        return;
+      }
+
+      if (panelId === 'q1b') {
+        this.drawBar();
+      }
+
+      if (panelId === 'q1c') {
+        this.drawTwoKeyBars();
+      }
+
+      if (panelId === 'q2') {
+        this.drawHeatmap();
+      }
+
+      if (panelId === 'q3a') {
+        this.drawRadial();
+      }
+
+      if (panelId === 'q3b') {
+        this.drawParallel();
+      }
+    }
+
+    // Question 1: Part A
+
+    buildSchemaTable() {
+      const body = d3.select('#schema-body');
+
+      body
+        .selectAll('tr')
+        .data(this.analysis.schema())
+        .join('tr')
+        .each(function(entry) {
+          const values = [
+            entry.column,
+            entry.category,
+            entry.type,
+            entry.levels,
+            entry.role
+          ];
+
+          d3
+            .select(this)
+            .selectAll('td')
+            .data(values)
+            .join('td')
+            .text(String);
+        });
+    }
+
+    // Question 1: Part B
+
+    changeBarOrder(order) {
+      this.barOrder = order;
+
+      if (this.analysis) {
+        this.drawBar();
+      }
+    }
+
+    drawBar() {
+      const data = this.analysis.singleKeyRows;
+
+      const name = {
+        alpha: 'Alphabetical ordering',
+        value: 'Value ordering (highest first)',
+        derived: 'Ordering by percentage change'
+      }[this.barOrder];
+
+      d3
+        .select('#q1b-title')
+        .text(
+          name
+        );
+
+      ChartUtils.updateButtons(
+        [
+          'b-alpha',
+          'b-value',
+          'b-derived'
+        ],
+        `b-${this.barOrder}`
+      );
+
+      const width = Math.max(
+        1120,
+        data.length * 30 + 145
+      );
+
+      this.bar
+        .width(width)
+        .height(525)
+        .data(data)
+        .order(this.barOrder);
+
+      d3
+        .select('#chart')
+        .call(this.bar);
+
+      d3
+        .select('#q1b-note')
+        .text(
+          `${data.length} countries in ` +
+          `${this.analysis.selectedYear}. ` +
+          'Derived ordering: percentage change in ' +
+          `${ChartUtils.label(VALUE_COL)} ` +
+          `from ${this.analysis.baselineYear ?? 'the first available year'} ` +
+          `to ${this.analysis.selectedYear}. ` +
+          'Missing baselines sort last.'
+        );
+    }
+
+    // Question 1: Part C
+
+    changeTwoKeyMode(mode) {
+      this.twoKeyMode = mode;
+
+      if (this.analysis) {
+        this.drawTwoKeyBars();
+      }
+    }
+
+    drawTwoKeyBars() {
+      const mode = this.twoKeyMode;
+
+      d3
+        .select('#q1c-title')
+        .text(
+          mode === 'stacked'
+            ? 'Stacked bars by country and year'
+            : 'Grouped bars by country and year'
+        );
+
+      ChartUtils.updateButtons(
+        [
+          'b-stacked',
+          'b-grouped'
+        ],
+        `b-${mode}`
+      );
+
+      this.twoKeyChart.render(
+        d3.select('#two-key-chart'),
+        this.analysis.crossTable,
+        mode
+      );
+
+      d3
+        .select('#q1c-note')
+        .text(
+          `${this.analysis.crossTable.missingCount} ` +
+          'missing country-year combinations. ' +
+          'Missing observations are excluded from totals ' +
+          'rather than imputed as zeros.'
+        );
+    }
+
+    // Question 2: Parts A and B
+
+    changeMatrixMode(mode) {
+      this.matrixMode = mode;
+
+      if (this.analysis) {
+        this.drawHeatmap();
+      }
+    }
+
+    drawHeatmap() {
+      d3
+        .select('#q2-title')
+        .text(
+          this.matrixMode === 'original'
+            ? 'Original heatmap (alphabetical rows)'
+            : 'Heatmap reordered by row mean'
+        );
+
+      ChartUtils.updateButtons(
+        [
+          'b-matrix-original',
+          'b-matrix-reordered'
+        ],
+        `b-matrix-${this.matrixMode}`
+      );
+
+      this.heatmapChart.render(
+        d3.select('#matrix-chart'),
+        this.analysis.crossTable,
+        this.matrixMode
+      );
+
+      d3
+        .select('#q2-note')
+        .text(
+          'The same cells, quantitative values, colour scale, ' +
+          'and chronological column order are preserved. ' +
+          'Only the country row order changes.'
+        );
+    }
+
+    // Question 3: Part A
+
+    buildRankingFields() {
+      const candidates = this.analysis.radialData.rankedBars;
+      const choices = candidates
+        .slice()
+        .sort((a, b) => d3.ascending(a.key, b.key));
+
+      const container = d3.select('#ranking-fields');
+
+      container.selectAll('*').remove();
+
+      const count = Math.min(
+        5,
+        candidates.length
+      );
+
+      for (
+        let position = 0;
+        position < count;
+        position++
+      ) {
+        const wrapper = container
+          .append('label')
+          .attr('class', 'ranking-field')
+          .text(
+            `Rank ${position + 1}`
+          );
+
+        const select = wrapper
+          .append('select')
+          .attr(
+            'id',
+            `rank-${position}`
+          );
+
+        select
+          .append('option')
+          .attr('value', '')
+          .text('Choose a level');
+
+        choices.forEach(row => {
+          select
+            .append('option')
+            .attr('value', row.key)
+            .text(row.key);
+        });
+      }
+    }
+
+    drawRadial() {
+      const { bars } = this.analysis.radialData;
+      const other = bars.find(row => row.isOther);
+
+      this.radialChart.render(
+        d3.select('#radial-chart'),
+        bars,
+        this.rankingChecked
+      );
+
+      d3
+        .select('#q3a-note')
+        .text(
+          'Rank the five largest radial bars before checking ' +
+          'the value-ordered chart in Question 1. ' +
+          (other
+            ? `Other combines the remaining ${other.countryCount} ` +
+              'countries, which appear separately in Question 1.'
+            : '')
+        );
+
+      d3
+        .select('#q3a-title')
+        .text(
+          'Radial bar chart · ' +
+          `${ChartUtils.label(VALUE_COL)} ` +
+          `in ${this.analysis.selectedYear}`
+        );
+    }
+
+    checkRanking() {
+      if (!this.analysis) {
+        return;
+      }
+
+      const candidates = this.analysis.radialData.rankedBars;
+
+      const answerCount = Math.min(
+        5,
+        candidates.length
+      );
+
+      const predicted = d3
+        .range(answerCount)
+        .map(index =>
+          d3
+            .select(`#rank-${index}`)
+            .property('value')
+        );
+
+      const result = d3.select('#rank-result');
+
+      if (
+        predicted.some(value => !value) ||
+        new Set(predicted).size !== answerCount
+      ) {
+        result.text(
+          `Select ${answerCount} different levels before ` +
+          'checking your ranking.'
+        );
+
+        return;
+      }
+
+      const actual = candidates
+        .slice(0, answerCount)
+        .map(row => row.key);
+
+      const actualIndex = new Map(
+        candidates.map(
+          (row, index) => [
+            row.key,
+            index
+          ]
+        )
+      );
+
+      const correctPositions = predicted.filter(
+        (key, index) => key === actual[index]
+      ).length;
+
+      const reversedPairs = [];
+
+      for (
+        let first = 0;
+        first < predicted.length;
+        first++
+      ) {
+        for (
+          let second = first + 1;
+          second < predicted.length;
+          second++
+        ) {
+          if (
+            actualIndex.get(predicted[first]) >
+            actualIndex.get(predicted[second])
+          ) {
+            reversedPairs.push(
+              `${predicted[first]} / ${predicted[second]}`
+            );
+          }
+        }
+      }
+
+      const missingTopFive = actual.filter(
+        key => !predicted.includes(key)
+      );
+
+      const other = this.analysis.radialData.bars.find(
+        row => row.isOther
+      );
+
+      const otherNote = other
+        ? `\nOther combines ${other.countryCount} countries; ` +
+          'Question 1 shows them separately.'
+        : '';
+
+      result.text(
+        `Your ranking: ${predicted.join(' > ')}\n` +
+        `Actual top five: ${actual.join(' > ')}\n` +
+        `Exact positions correct: ${correctPositions} ` +
+        `of ${answerCount}.\n` +
+        `Reversed pairs: ${
+          reversedPairs.length
+            ? reversedPairs.join('; ')
+            : 'None'
+        }.\n` +
+        `Actual top-five levels omitted: ${
+          missingTopFive.length
+            ? missingTopFive.join(', ')
+            : 'None'
+        }.${otherNote}`
+      );
+
+      this.rankingChecked = true;
+      this.drawRadial();
+    }
+
+    // Question 3: Part B
+
+    changeParallelMode(mode) {
+      this.parallelMode = mode;
+
+      if (this.analysis) {
+        this.drawParallel();
+      }
+    }
+
+    drawParallel() {
+      d3
+        .select('#q3b-title')
+        .text(
+          this.parallelMode === 'original'
+            ? 'Parallel coordinates with the original axis order'
+            : 'Parallel coordinates with the last axis moved first'
+        );
+
+      ChartUtils.updateButtons(
+        [
+          'b-parallel-original',
+          'b-parallel-reordered'
+        ],
+        `b-parallel-${this.parallelMode}`
+      );
+
+      this.parallelChart.render(
+        d3.select('#parallel-chart'),
+        this.analysis.parallelRows,
+        DIMENSIONS,
+        this.parallelMode
+      );
+
+      d3
+        .select('#q3b-note')
+        .text(
+          `${this.analysis.parallelRows.length} ` +
+          'country profiles in ' +
+          `${this.analysis.selectedYear}; ` +
+          'the same records, axis ranges, region colours, ' +
+          'and opacity appear in both views.'
+        );
+    }
+  }
+
+  // Start the application.
+
+  const homeworkSevenApp = new HomeworkSevenApp();
+
+  homeworkSevenApp.initialize();
+</script>
+</body>
+</html>
